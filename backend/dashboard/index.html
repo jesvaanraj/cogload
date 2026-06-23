@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CogLoad Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
+    header { background: #1a1d27; border-bottom: 1px solid #2d3148; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.3rem; font-weight: 600; }
+    header span { font-size: 0.85rem; color: #7c8db0; }
+    .badge { background: #2563eb22; color: #60a5fa; border: 1px solid #2563eb55; border-radius: 999px; padding: 2px 12px; font-size: 0.75rem; }
+    main { padding: 32px; max-width: 1200px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 32px; }
+    .card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; padding: 20px; }
+    .card-label { font-size: 0.75rem; color: #7c8db0; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .card-value { font-size: 2rem; font-weight: 700; }
+    .card-sub { font-size: 0.8rem; color: #7c8db0; margin-top: 4px; }
+    .fresh { color: #4ade80; }
+    .normal { color: #60a5fa; }
+    .tired { color: #fb923c; }
+    .critical { color: #f87171; }
+    .flow { color: #a78bfa; }
+    .chart-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .chart-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: #cbd5e1; }
+    .state-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .state-bar-label { width: 80px; font-size: 0.8rem; color: #7c8db0; }
+    .state-bar-fill { height: 8px; border-radius: 4px; transition: width 0.5s; }
+    .state-bar-count { font-size: 0.8rem; color: #7c8db0; }
+    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; display: inline-block; }
+    #status-dot.offline { background: #f87171; }
+    .sessions-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .sessions-table th { text-align: left; padding: 10px 14px; color: #7c8db0; border-bottom: 1px solid #2d3148; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; }
+    .sessions-table td { padding: 10px 14px; border-bottom: 1px solid #1e2235; }
+    .sessions-table tr:hover td { background: #1e2235; }
+  </style>
+</head>
+<body>
+  <header>
+    <span id="status-dot"></span>
+    <h1>🧠 CogLoad Dashboard</h1>
+    <span class="badge">Live</span>
+    <span id="last-update" style="margin-left:auto;font-size:0.8rem;color:#7c8db0;"></span>
+  </header>
+
+  <main>
+    <div class="grid">
+      <div class="card">
+        <div class="card-label">Current Load</div>
+        <div class="card-value" id="score">—</div>
+        <div class="card-sub">out of 10</div>
+      </div>
+      <div class="card">
+        <div class="card-label">State</div>
+        <div class="card-value" id="state-badge">—</div>
+        <div class="card-sub" id="state-msg"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Session Avg</div>
+        <div class="card-value" id="avg-score">—</div>
+        <div class="card-sub">average load</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Snapshots</div>
+        <div class="card-value" id="snap-count">0</div>
+        <div class="card-sub">this session</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h2>Cognitive Load Over Time</h2>
+      <canvas id="load-chart" height="80"></canvas>
+    </div>
+
+    <div class="chart-card">
+      <h2>State Distribution</h2>
+      <div id="state-bars"></div>
+    </div>
+
+    <div class="chart-card">
+      <h2>Recent Sessions</h2>
+      <table class="sessions-table">
+        <thead>
+          <tr><th>Session ID</th><th>Snapshots</th><th>Avg Load</th><th>Started</th><th>Last Seen</th></tr>
+        </thead>
+        <tbody id="sessions-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    const labels = [], scores = [];
+    const stateCounts = { fresh: 0, normal: 0, tired: 0, flow: 0, critical: 0 };
+    let snapCount = 0;
+
+    const ctx = document.getElementById('load-chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Cognitive Load',
+          data: scores,
+          borderColor: '#60a5fa',
+          backgroundColor: '#60a5fa22',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointBackgroundColor: '#60a5fa',
+        }]
+      },
+      options: {
+        scales: {
+          y: { min: 0, max: 10, grid: { color: '#2d3148' }, ticks: { color: '#7c8db0' } },
+          x: { grid: { color: '#2d3148' }, ticks: { color: '#7c8db0' } }
+        },
+        plugins: { legend: { display: false } },
+        animation: { duration: 400 }
+      }
+    });
+
+    function updateStateBars() {
+      const total = Object.values(stateCounts).reduce((a, b) => a + b, 0) || 1;
+      const colors = { fresh: '#4ade80', normal: '#60a5fa', tired: '#fb923c', critical: '#f87171', flow: '#a78bfa' };
+      document.getElementById('state-bars').innerHTML = Object.entries(stateCounts).map(([state, count]) => `
+        <div class="state-bar">
+          <span class="state-bar-label">${state}</span>
+          <div class="state-bar-fill" style="width:${(count/total)*100}%;max-width:calc(100% - 160px);background:${colors[state]}"></div>
+          <span class="state-bar-count">${count}</span>
+        </div>
+      `).join('');
+    }
+
+    async function fetchSessions() {
+      try {
+        const res = await fetch('/api/sessions/');
+        const sessions = await res.json();
+        document.getElementById('sessions-tbody').innerHTML = sessions.map(s => `
+          <tr>
+            <td style="font-family:monospace;font-size:0.8rem">${s.session_id}</td>
+            <td>${s.snapshots}</td>
+            <td>${parseFloat(s.avg_score).toFixed(1)}</td>
+            <td>${new Date(s.started_at).toLocaleString()}</td>
+            <td>${new Date(s.last_seen).toLocaleString()}</td>
+          </tr>
+        `).join('');
+      } catch {}
+    }
+
+    async function loadLatestSession() {
+      try {
+        const res = await fetch('/api/sessions/');
+        const sessions = await res.json();
+        if (sessions.length > 0) {
+          const latest = sessions[0];
+          document.getElementById('avg-score').textContent = parseFloat(latest.avg_score).toFixed(1);
+          document.getElementById('snap-count').textContent = latest.snapshots;
+        }
+      } catch {}
+    }
+
+    function connectWS() {
+      const ws = new WebSocket(`ws://${location.host}/ws/telemetry`);
+      const dot = document.getElementById('status-dot');
+
+      ws.onopen = () => { dot.className = ''; };
+      ws.onclose = () => { dot.className = 'offline'; setTimeout(connectWS, 4000); };
+
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        const { score, state, message } = data;
+        snapCount++;
+
+        const time = new Date().toLocaleTimeString();
+        labels.push(time);
+        scores.push(score);
+        if (labels.length > 20) { labels.shift(); scores.shift(); }
+        chart.update();
+
+        const avg = (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+        document.getElementById('score').textContent = score;
+        document.getElementById('score').className = `card-value ${state}`;
+        document.getElementById('state-badge').textContent = state.toUpperCase();
+        document.getElementById('state-badge').className = `card-value ${state}`;
+        document.getElementById('state-msg').textContent = message;
+        document.getElementById('avg-score').textContent = avg;
+        document.getElementById('snap-count').textContent = snapCount;
+        document.getElementById('last-update').textContent = `Last update: ${time}`;
+
+        if (stateCounts[state] !== undefined) stateCounts[state]++;
+        updateStateBars();
+      };
+    }
+
+    connectWS();
+    fetchSessions();
+    setInterval(fetchSessions, 10000);
+    updateStateBars();
+    loadLatestSession();
+  </script>
+</body>
+</html>

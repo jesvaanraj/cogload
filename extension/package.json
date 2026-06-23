@@ -1,0 +1,57 @@
+{
+  "name": "cogload",
+  "displayName": "CogLoad — Cognitive Load Assistant",
+  "description": "Adapts your coding assistant based on your real-time cognitive load",
+  "version": "1.0.0",
+  "publisher": "jesvaanraj",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cogload.showDashboard",
+        "title": "CogLoad: Show Dashboard"
+      },
+      {
+        "command": "cogload.resetSession",
+        "title": "CogLoad: Reset Session"
+      }
+    ],
+    "configuration": {
+      "title": "CogLoad",
+      "properties": {
+        "cogload.backendUrl": {
+          "type": "string",
+          "default": "ws://localhost:8000/ws/telemetry",
+          "description": "WebSocket URL of the CogLoad backend"
+        },
+        "cogload.snapshotIntervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "description": "How often (in seconds) to send telemetry to the backend"
+        },
+        "cogload.showNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show cognitive load notifications in VSCode"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

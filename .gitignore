@@ -1,0 +1,21 @@
+# env
+.env
+
+# node
+node_modules/
+extension/out/
+extension/.vscode-test/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ml
+ml/saved_models/
+ml/data/*.csv
+
+# misc
+.DS_Store
+*.log
